@@ -571,10 +571,17 @@ function renderCalGrid(m){
   const ym=STATE.calMonth.split("-"), yr=+ym[0], mo=+ym[1]-1;
   const card=el("div","card");
   const nav=el("div","calnav");
-  const prev=el("button",null,"‹"), next=el("button",null,"›");
-  prev.onclick=()=>{ let y=yr,mn=mo-1; if(mn<0){mn=11;y--;} STATE.calMonth=y+"-"+String(mn+1).padStart(2,"0"); render(); };
-  next.onclick=()=>{ let y=yr,mn=mo+1; if(mn>11){mn=0;y++;} STATE.calMonth=y+"-"+String(mn+1).padStart(2,"0"); render(); };
-  nav.appendChild(prev); nav.appendChild(el("div","mlabel",MONTHS[mo]+" "+yr)); nav.appendChild(next);
+  function goMonth(y,mn){ if(mn<0){mn=11;y--;} if(mn>11){mn=0;y++;} STATE.calMonth=y+"-"+String(mn+1).padStart(2,"0"); render(); }
+  const py=el("button",null,"«"), prev=el("button",null,"‹"), next=el("button",null,"›"), ny=el("button",null,"»");
+  py.title="Previous year"; ny.title="Next year";
+  py.onclick=()=>goMonth(yr-1,mo);
+  prev.onclick=()=>goMonth(yr,mo-1);
+  next.onclick=()=>goMonth(yr,mo+1);
+  ny.onclick=()=>goMonth(yr+1,mo);
+  const lbl=el("div","mlabel",MONTHS[mo]+" "+yr);
+  lbl.style.cursor="pointer"; lbl.title="Jump to this month";
+  lbl.onclick=()=>{ const t=new Date(todayISO()+"T12:00:00"); STATE.calMonth=t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,"0"); render(); };
+  nav.appendChild(py); nav.appendChild(prev); nav.appendChild(lbl); nav.appendChild(next); nav.appendChild(ny);
   card.appendChild(nav);
 
   const grid=el("div","calgrid");
