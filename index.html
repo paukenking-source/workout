@@ -671,42 +671,44 @@ function openPlanned(iso,ps){
 
 /* ============ SEARCH ============ */
 function renderSearch(m){
-  $("#hTitle").textContent="Search"; $("#hSub").textContent="Find a movement";
+  $("#hTitle").textContent="Search"; $("#hSub").textContent="Find anything in your log";
   const c=el("div","card");
-  c.innerHTML="<h2>Search your movements</h2><div class='muted'>Type an exercise — e.g. \"romanian deadlift\" — to find every session it appears in.</div>";
-  const inp=el("input"); inp.placeholder="Exercise name"; inp.id="searchq"; inp.style.marginTop="10px";
+  c.innerHTML="<h2>Search</h2><div class='muted'>Find any workout by exercise, date, workout name, category, or a word in its notes.</div>";
+  const inp=el("input"); inp.placeholder="exercise · date · workout name · category"; inp.id="searchq"; inp.style.marginTop="10px";
   c.appendChild(inp);
   m.appendChild(c);
   const res=el("div"); res.id="searchres"; m.appendChild(res);
   inp.oninput=()=>doSearch(inp.value);
   doSearch("");
 }
+function sessionSearchText(s){
+  const parts=[s.title||"", s.date||"", fmtDate(s.date), s.category||"", s.notes||"", monthLabel((s.date||"").slice(0,7))];
+  (s.blocks||[]).forEach(b=>{ if(b.name) parts.push(b.name); });
+  return parts.join("  ").toLowerCase();
+}
 function doSearch(q){
   const res=$("#searchres"); if(!res) return; res.innerHTML="";
   q=(q||"").trim().toLowerCase();
-  if(q.length<2){ res.appendChild(el("div","empty","Type at least 2 letters.")); return; }
-  // logged history
-  const hits=[];
-  DB.sessions.forEach(s=>{
-    (s.blocks||[]).forEach(b=>{
-      if(b.name && b.name.toLowerCase().indexOf(q)>=0){ hits.push({s:s,b:b}); }
-    });
-  });
-  hits.sort((a,b)=>(b.s.date||"").localeCompare(a.s.date||""));
+  if(q.length<2){ res.appendChild(el("div","empty","Type at least 2 letters — an exercise, a date, a workout name, anything.")); return; }
+  const hits=DB.sessions.filter(s=> sessionSearchText(s).indexOf(q)>=0 );
+  hits.sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   const card=el("div","card");
-  card.appendChild(el("h2",null,"In your history ("+hits.length+")"));
-  if(!hits.length) card.appendChild(el("div","empty","No logged sessions with that movement."));
-  else hits.slice(0,40).forEach(h=>{
+  card.appendChild(el("h2",null,"Matches ("+hits.length+")"));
+  if(!hits.length) card.appendChild(el("div","empty","Nothing found for that."));
+  else hits.slice(0,60).forEach(s=>{
+    const exM=[...new Set((s.blocks||[]).filter(b=>b.name && b.name.toLowerCase().indexOf(q)>=0).map(b=>b.name))];
     const row=el("div","hist");
-    let setTxt="";
-    if(h.b.sets) setTxt=h.b.sets.filter(x=>x.weight||x.reps).map(x=>(x.weight?x.weight:"–")+"×"+(x.reps||"?")).join(", ");
-    row.innerHTML="<div class='info'><div class='l1'>"+esc(h.b.name)+"</div>"+
-      "<div class='l2'>"+fmtDate(h.s.date)+" · "+esc(h.s.title||"Session")+(setTxt?" · "+esc(setTxt):"")+"</div></div><div class='arr'>›</div>";
-    row.onclick=()=>{ STATE.detailId=h.s.id; go("detail"); };
+    const dotc=s.archived?"Arc":(s.stype==="B"?"B":(s.stype==="Home"?"Home":"A"));
+    const dotT=s.archived?"OLD":esc(s.stype||"?");
+    row.innerHTML="<div class='dot "+dotc+"'>"+dotT+"</div>"+
+      "<div class='info'><div class='l1'>"+esc(s.title||"Session")+"</div>"+
+      "<div class='l2'>"+fmtDate(s.date)+(exM.length?" · "+esc(exM.slice(0,2).join(", ")):"")+"</div></div>"+
+      "<div class='arr'>›</div>";
+    row.onclick=()=>{ STATE.detailId=s.id; go("detail"); };
     card.appendChild(row);
   });
+  if(hits.length>60) card.appendChild(el("div","muted","Showing the first 60 — narrow your search to see more."));
   res.appendChild(card);
-  // program
   const inProg=[];
   PROGRAM.phases.forEach(p=>{
     if(!p.detailed) return;
@@ -1130,6 +1132,17 @@ function sparkline(values,w,h){
   const dots=pts.map(p=>"<circle cx='"+p[0].toFixed(1)+"' cy='"+p[1].toFixed(1)+"' r='3' fill='#1d4a2e'/>").join("");
   return "<svg class='spark' width='"+w+"' height='"+h+"' viewBox='0 0 "+w+" "+h+"'><polyline points='"+line+"' fill='none' stroke='#347a4c' stroke-width='2'/>"+dots+"</svg>";
 }
+function movePattern(name){
+  const n=(name||"").toLowerCase();
+  if(/squat/.test(n) && !/split|bulgarian|cyclist/.test(n)) return "Squat";
+  if(/split squat|bulgarian|lunge|step.?up|single.?leg|\bsl\b|pistol/.test(n)) return "Single-Leg";
+  if(/deadlift|\brdl\b|romanian|good.?morning|hip thrust|glute|swing|hinge|clean|snatch|high pull/.test(n)) return "Hinge";
+  if(/bench|press|push.?up|\bdip\b|overhead|jerk/.test(n)) return "Press";
+  if(/\brow\b|pull.?up|chin.?up|pulldown|\blat\b|face.?pull|curl|pull.?apart/.test(n)) return "Pull";
+  if(/plank|core|\bab\b|abs|dead.?bug|pallof|hollow|sit.?up|knee|leg raise|windmill|bird.?dog|rotation|carry/.test(n)) return "Core";
+  return "Other";
+}
+let progFilter={q:"",type:"All"};
 function renderProgress(m){
   $("#hTitle").textContent="Progress"; $("#hSub").textContent="Bodyweight, lifts & PRs";
   const bw=el("div","card");
@@ -1149,27 +1162,49 @@ function renderProgress(m){
   bw.appendChild(brow);
   m.appendChild(bw);
 
-  const names=[];
-  DB.sessions.forEach(s=>(s.blocks||[]).forEach(b=>{ if(b.sets && b.name && names.indexOf(b.name)<0) names.push(b.name); }));
   const lifts=el("div","card"); lifts.appendChild(el("h2",null,"Your lifts"));
-  if(!names.length) lifts.appendChild(el("div","empty","Log a session to see progress here."));
-  else {
-    names.sort((a,b)=>{ const ha=exerciseHistory(a),hb=exerciseHistory(b); return (hb[0]?hb[0].date:"").localeCompare(ha[0]?ha[0].date:""); });
-    names.forEach(nm=>{
-      const h=exerciseHistory(nm);
-      if(!h.length) return;
-      let pr=0,prReps="";
-      h.forEach(e=>e.sets.forEach(s=>{ const wv=num(s.weight); if(wv!=null&&wv>pr){ pr=wv; prReps=s.reps||""; } }));
-      const series=[...h].reverse().map(e=>topSetWeight(e.sets)).filter(v=>v>0);
-      const wrap=el("div"); wrap.style.padding="10px 0"; wrap.style.borderBottom="1px solid #eef1ee";
-      wrap.innerHTML="<div style='font-weight:700;font-size:14px'>"+esc(nm)+"</div>"+
-        "<div class='prline'><span class='muted'>Best set</span><span class='v'>"+(pr?pr+" lb"+(prReps?" × "+prReps:""):"—")+"</span></div>"+
-        "<div class='prline'><span class='muted'>Sessions logged</span><span class='v'>"+h.length+"</span></div>";
-      if(series.length>=2) wrap.insertAdjacentHTML("beforeend", sparkline(series));
-      lifts.appendChild(wrap);
-    });
-  }
+  const si=el("input"); si.placeholder="Search a movement…"; si.value=progFilter.q; si.style.marginTop="4px";
+  lifts.appendChild(si);
+  const chips=el("div","pillrow"); chips.style.marginTop="10px";
+  ["All","Squat","Hinge","Press","Pull","Single-Leg","Core","Other"].forEach(t=>{
+    const chip=el("span","pill"+(progFilter.type===t?" badge":""),t);
+    chip.style.cursor="pointer";
+    chip.onclick=()=>{ progFilter.type=t; go("progress"); };
+    chips.appendChild(chip);
+  });
+  lifts.appendChild(chips);
+  const listWrap=el("div"); listWrap.style.marginTop="6px"; lifts.appendChild(listWrap);
+  si.oninput=()=>{ progFilter.q=si.value; renderProgList(listWrap); };
+  renderProgList(listWrap);
   m.appendChild(lifts);
+}
+function renderProgList(wrap){
+  wrap.innerHTML="";
+  const q=(progFilter.q||"").trim().toLowerCase(), type=progFilter.type;
+  let names=[];
+  DB.sessions.forEach(s=>(s.blocks||[]).forEach(b=>{ if(b.sets && b.name && names.indexOf(b.name)<0) names.push(b.name); }));
+  names=names.filter(nm=>{
+    if(q && nm.toLowerCase().indexOf(q)<0) return false;
+    if(type!=="All" && movePattern(nm)!==type) return false;
+    return true;
+  });
+  if(!names.length){ wrap.appendChild(el("div","empty","No movements match.")); return; }
+  names.sort((a,b)=>{ const ha=exerciseHistory(a),hb=exerciseHistory(b); return (hb[0]?hb[0].date:"").localeCompare(ha[0]?ha[0].date:""); });
+  const total=names.length;
+  names.slice(0,60).forEach(nm=>{
+    const h=exerciseHistory(nm);
+    if(!h.length) return;
+    let pr=0,prReps="";
+    h.forEach(e=>e.sets.forEach(s=>{ const wv=num(s.weight); if(wv!=null&&wv>pr){ pr=wv; prReps=s.reps||""; } }));
+    const series=[...h].reverse().map(e=>topSetWeight(e.sets)).filter(v=>v>0);
+    const d=el("div"); d.style.padding="10px 0"; d.style.borderBottom="1px solid #eef1ee";
+    d.innerHTML="<div style='font-weight:700;font-size:14px'>"+esc(nm)+" <span class='pill' style='font-weight:600'>"+esc(movePattern(nm))+"</span></div>"+
+      "<div class='prline'><span class='muted'>Best set</span><span class='v'>"+(pr?pr+" lb"+(prReps?" × "+prReps:""):"—")+"</span></div>"+
+      "<div class='prline'><span class='muted'>Sessions logged</span><span class='v'>"+h.length+"</span></div>";
+    if(series.length>=2) d.insertAdjacentHTML("beforeend", sparkline(series));
+    wrap.appendChild(d);
+  });
+  if(total>60) wrap.appendChild(el("div","muted","Showing 60 of "+total+" — search to narrow."));
 }
 
 /* ============ SYNC ============ */
