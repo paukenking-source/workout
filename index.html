@@ -165,6 +165,9 @@
   .leg i { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
   .poolbox { font-size: 12px; color: #46514a; background: #f3f6f3; border-radius: 8px; padding: 8px 10px; margin-top: 6px; }
   .poolbox b { color: #2f6b43; }
+  .cardiogrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .hist .dot.Aux { background: #c2922e; font-size: 13px; }
+  .calcell .cmark.Aux { background: #c2922e; }
 </style>
 </head>
 <body>
@@ -331,7 +334,28 @@ const EXERCISE_INFO = {
   "clean pull":"A deadlift that finishes with an aggressive hip-and-shrug extension — the bar travels up the body but you do NOT catch it.",
   "snatch-grip high pull":"Wide grip. Pull explosively from the floor, finishing with a high elbow pull to chest height — no catch, just the pull.",
   "med-ball slam":"Lift a med ball overhead and slam it down hard, catching the bounce. Full-body, explosive.",
-  "med-ball chest throw":"From an athletic stance, throw a med ball explosively off the chest into a wall, catch and reset."
+  "med-ball chest throw":"From an athletic stance, throw a med ball explosively off the chest into a wall, catch and reset.",
+  "db lateral raise":"Dumbbells at your sides, a slight forward lean. Raise them out to shoulder height leading with the elbows, soft elbows, lower slow. No swinging.",
+  "db rear-delt fly":"Hinge forward with a flat back. Raise the dumbbells out to the sides, squeezing the rear delts and mid-back, then control them down.",
+  "db front raise":"Dumbbells in front of the thighs. Raise to shoulder height with near-straight arms, control the descent. No momentum.",
+  "cable lateral raise":"Low-pulley cable across the body. Raise out to shoulder height leading with the elbow, control it back down — constant tension.",
+  "reverse pec fly":"On the pec-deck set for rear delts (or bent-over with cables). Open the arms wide, squeeze the rear delts, return under control.",
+  "db biceps curl":"Dumbbells at your sides, elbows pinned to your ribs. Curl up without swinging, squeeze at the top, lower slow under control.",
+  "hammer curl":"Curl with a neutral palms-facing grip, elbows pinned. Hits the brachialis and forearm. Controlled up, controlled down.",
+  "incline db curl":"Lie back on an incline bench, arms hanging straight down. Curl with the elbows back for a big biceps stretch. Slow negatives.",
+  "cable curl":"Curl a low-pulley cable, elbows pinned, constant tension the whole way. Squeeze at the top, control the descent.",
+  "db overhead triceps extension":"Hold one dumbbell overhead in both hands. Lower it behind the head with elbows pointing up, then press back to a tall lockout.",
+  "db skullcrusher":"Lie flat, dumbbells over the chest. Bend only at the elbows to lower toward the forehead, keep the elbows still, then extend back up.",
+  "triceps pushdown":"Cable at the top. Elbows pinned to your sides, push the handle down to a full lockout, control it back up. Only the forearms move.",
+  "db kickback":"Hinged over, upper arm parallel to the floor. Extend the elbow straight back to lockout, squeeze the triceps, control it back.",
+  "standing calf raise":"Balls of the feet on a step or block. Rise up tall onto the toes, pause at the top, then lower slowly for a full stretch at the bottom.",
+  "seated calf raise":"Seated with the weight across the knees. Drive up onto the toes, pause, lower slow. Targets the soleus — go lighter, higher reps.",
+  "single-leg calf raise":"One foot on a step, hold something for balance. Rise up tall onto the toes, pause, lower slow through a full stretch.",
+  "tibialis raise":"Heels down, back against a wall. Pull the toes up toward the shins against the resistance, lower slow. Builds the front of the shin.",
+  "arm circles":"Arms out to the sides, draw small-to-large circles forward, then reverse. An easy warm-up for the shoulders.",
+  "scap push-up":"In a push-up plank with straight arms, pinch the shoulder blades together, then push the upper back to the ceiling. No elbow bend.",
+  "world's greatest stretch":"In a deep lunge, drop the same-side elbow toward the floor, then rotate that arm open to the sky. A full-body mobility opener.",
+  "cat-cow":"On hands and knees, alternate arching the back up (cat) and dropping the belly with the chest open (cow). Slow, moving with the breath."
 };
 function exKey(name){ return (name||"").toLowerCase().replace(/\(.*?\)/g,"").trim(); }
 
@@ -359,6 +383,117 @@ function generateSession(phaseId,week,stype,dateIso){
   ];
   return { name: isSquat?"Full Body — Squat Day":"Full Body — Hinge Day",
     warmup: isSquat?WARMUP_SQUAT:WARMUP_HINGE, blocks:blocks };
+}
+
+/* ============ INPUT METRIC PER MOVEMENT ============ */
+/* How a movement is logged: "weight" (lb), "band" (free text), "bodyweight" (BW or +load). */
+function metricFor(name){
+  const n=(name||"").toLowerCase();
+  if(/pull-apart|pull-through|band\b/.test(n)) return "band";
+  if(/pull-up|chin-up|push-up|inverted row|\bdip\b|scap pull/.test(n)) return "bodyweight";
+  return "weight";
+}
+
+/* ============ SUPERSET-GROUP COLORS ============ */
+const GROUP_COLOR = { A:"#347a4c", B:"#2f8f88", C:"#c2922e", D:"#c06a42", E:"#8a5a86", P:"#6b7a6f", H:"#8a5a86" };
+function groupColor(bid){ const k=(bid||"").charAt(0).toUpperCase(); return GROUP_COLOR[k]||"#5e6b62"; }
+
+/* ============ HEADER THEME (by workout type / phase) ============ */
+const TYPE_THEME = { A:["#357f51","#15371f"], B:["#2f8f88","#13433e"], Aux:["#9c7a2a","#473515"],
+  Home:["#86608a","#3f2e42"], Custom:["#52789c","#2c4254"] };
+const PHASE_THEME = { 1:["#357f51","#15371f"], 2:["#2f8f88","#13433e"], 3:["#9c7a2a","#473515"],
+  4:["#b06640","#4a2a1b"], 5:["#86608a","#3f2e42"] };
+function setHeaderTheme(stype,phase){
+  const h=document.querySelector("header.app"); if(!h) return;
+  let pair=null;
+  if(stype && TYPE_THEME[stype]) pair=TYPE_THEME[stype];
+  else if(phase && PHASE_THEME[phase]) pair=PHASE_THEME[phase];
+  h.style.background = pair ? ("linear-gradient(160deg,"+pair[0]+","+pair[1]+")") : "";
+}
+
+/* ============ DOT CLASS (history / calendar / search) ============ */
+function stypeDot(s){
+  if(s.archived) return "Arc";
+  return s.stype==="B"?"B":(s.stype==="Home"?"Home":(s.stype==="Aux"?"Aux":"A"));
+}
+
+/* ============ AUXILIARY-DAY GENERATOR ============ */
+/* A light "gap-filler" — geared to cardio + the accessories the Tue/Fri template skips
+   (delts, arms, calves, core). Built never to tax the surrounding gym days. */
+const AUX_WARMUP = wu("2 easy rounds:",[
+  {n:"15",move:"Band Pull-Apart"},{n:"10 ea way",move:"Arm Circles"},
+  {n:"8",move:"Scap Push-up"},{n:"8/side",move:"World's Greatest Stretch"}],"then 3 min easy row.");
+const AUX_POOLS = {
+  delt:["DB Lateral Raise","DB Rear-Delt Fly","DB Front Raise","Cable Lateral Raise"],
+  upper:["Face Pull","Reverse Pec Fly","Chest-Supported DB Row","Band Pull-Apart"],
+  biceps:["DB Biceps Curl","Hammer Curl","Incline DB Curl","Cable Curl"],
+  triceps:["DB Overhead Triceps Extension","DB Skullcrusher","Triceps Pushdown","DB Kickback"],
+  lower:["Standing Calf Raise","Seated Calf Raise","Single-Leg Calf Raise","Tibialis Raise"],
+  core:["Dead Bug","Pallof Press","Hollow Hold","Hanging Knee Raise"],
+  cardio:[
+    {name:"Steady Row",desc:"12–15 min steady row — easy, nose-breathing Z2 pace. Pure flush, no intervals."},
+    {name:"Mixed Intervals",desc:"6 × (2 min moderate row / 1 min easy). Controlled — never hard enough to leave you sore."},
+    {name:"Bike + Walk",desc:"20 min easy bike at a conversational pace, then a 5 min cooldown walk."},
+    {name:"Incline Walk",desc:"20–25 min brisk incline treadmill walk, easy and steady."}
+  ]
+};
+function nearestProgramWeek(iso){
+  const d=new Date(iso+"T12:00:00"), a=new Date(ANCHOR+"T12:00:00");
+  const days=Math.floor((d-a)/86400000);
+  if(days<0) return null;
+  const pw=Math.floor(days/7)+1;
+  if(pw>totalProgramWeeks()) return null;
+  return phaseForProgramWeek(pw);
+}
+function generateAuxSession(dateIso){
+  let seed=0;
+  if(dateIso){ const d=new Date(dateIso+"T12:00:00"), a=new Date(ANCHOR+"T12:00:00");
+    const dd=Math.floor((d-a)/86400000); if(!isNaN(dd)) seed=Math.abs(dd); }
+  const delt=pick(AUX_POOLS.delt,seed),    upper=pick(AUX_POOLS.upper,seed+1);
+  const bi=pick(AUX_POOLS.biceps,seed+2),  tri=pick(AUX_POOLS.triceps,seed+3);
+  const low=pick(AUX_POOLS.lower,seed+1),  core=pick(AUX_POOLS.core,seed+2);
+  const cardio=pick(AUX_POOLS.cardio,seed);
+  function S(bid,name,meta,extra){
+    return Object.assign({ bid:bid, type:"SUPERSET", mode:coreMode(name), metric:metricFor(name),
+      name:name, meta:meta, restSec:45, sets:3 }, extra||{});
+  }
+  return {
+    name:"Auxiliary — Gap-Filler",
+    warmup:AUX_WARMUP,
+    blocks:[
+      S("A1",delt,"3 × 12–15 · light · RIR 3",{cue:"Auxiliary day — light and easy. This fills the gaps your Squat/Hinge days skip (delts, arms, calves) without taxing them. Stay RIR 3+; nothing today should make you sore."}),
+      S("A2",upper,"3 × 12–15 · controlled · squeeze"),
+      S("B1",bi,"3 × 10–12 · RIR 3 · no swing"),
+      S("B2",tri,"3 × 10–12 · RIR 3 · full stretch"),
+      S("C1",low,"3 × 12–15 · slow · pause at the stretch"),
+      S("C2",core,"3 sets · slow and controlled"),
+      { bid:"D", type:"CONDITIONING", mode:"conditioning", name:"Conditioning — "+cardio.name,
+        optA:cardio.desc, optB:"Swap freely for any easy cardio — keep it recovery-supportive, never hard." },
+      { bid:"P", type:"POST", mode:"note", name:"Post (optional)",
+        desc:"3–4 min easy stretch — doorway pec, overhead triceps, forearms, calves. Then done." }
+    ]
+  };
+}
+
+/* ============ WARM-UP CARD (read-only view) ============ */
+function warmupCard(warmup){
+  if(!warmup) return null;
+  const c=el("div","card");
+  c.innerHTML="<div class='blockhdr'><span class='pill type'>WARM-UP</span></div>";
+  if(typeof warmup==="object"){
+    if(warmup.rounds) c.appendChild(el("div","meta",esc(warmup.rounds)));
+    (warmup.items||[]).forEach(it=>{
+      const line=el("div","wuitem");
+      line.appendChild(document.createTextNode((it.n?it.n+" — ":"")));
+      const lk=el("span","exn",esc(it.move)); lk.onclick=()=>openExerciseInfo(it.move);
+      line.appendChild(lk);
+      const dot=el("span","infodot"," ⓘ"); dot.onclick=()=>openExerciseInfo(it.move);
+      line.appendChild(dot);
+      c.appendChild(line);
+    });
+    if(warmup.finish) c.appendChild(el("div","meta",esc(warmup.finish)));
+  } else { c.appendChild(el("div","meta",esc(warmup))); }
+  return c;
 }
 
 /* ============ SCHEDULE ============ */
@@ -472,6 +607,7 @@ let STATE = { view:"home", draft:null, editId:null, detailId:null, calMode:"cal"
 function go(view){ STATE.view=view; window.scrollTo(0,0); render(); }
 function render(){
   const m=main(); m.innerHTML="";
+  setHeaderTheme(null,null);
   const ob=document.querySelector(".savebar"); if(ob) ob.remove();
   $("#backBtn").style.display = STATE.view==="home" ? "none" : "flex";
   ({home:renderHome,picker:renderPicker,log:renderLog,detail:renderDetail,calendar:renderCalendar,
@@ -523,7 +659,7 @@ function clearable(input){
 /* ============ SHARED: history row ============ */
 function histRow(s){
   const r=el("div","hist");
-  const dotc=s.archived?"Arc":(s.stype==="B"?"B":(s.stype==="Home"?"Home":"A"));
+  const dotc=stypeDot(s);
   const dotTxt=s.archived?(s.category?s.category.slice(0,3).toUpperCase():"OLD"):(s.stype==="Home"?"HOME":esc(s.stype||"?"));
   const w=s.watch||{};
   const needsW=(s.stype==="A"||s.stype==="B") && !s.archived && !w.duration && !w.avgHR && !w.calories;
@@ -558,6 +694,7 @@ const TOOLS=[
 function renderHome(m){
   $("#hTitle").textContent="Workout Log";
   $("#hSub").textContent="Phase 1 — Reintroduction";
+  const _ph=nearestProgramWeek(todayISO()); setHeaderTheme(null,_ph?_ph.phase:1);
 
   if(DB.activeDraft){
     const d=DB.activeDraft;
@@ -670,7 +807,7 @@ function renderCalGrid(m){
     const logged=byDate[iso];
     if(logged && logged.length){
       const s=logged[0];
-      const cls=s.archived?"Arc":(s.stype==="B"?"B":(s.stype==="Home"?"Home":"A"));
+      const cls=stypeDot(s);
       cell.appendChild(el("div","cmark "+cls, s.archived?"•":esc((s.stype||"?").slice(0,1))));
       cell.classList.add("has");
       cell.onclick=()=>{ STATE.detailId=s.id; go("detail"); };
@@ -684,6 +821,7 @@ function renderCalGrid(m){
   const leg=el("div","leg");
   leg.innerHTML="<span><i style='background:#1d4a2e'></i>Squat day</span>"+
     "<span><i style='background:#2f8f88'></i>Hinge day</span>"+
+    "<span><i style='background:#c2922e'></i>Auxiliary</span>"+
     "<span><i style='background:#9aa79e'></i>Archived</span>"+
     "<span><i style='background:#fff;border:1.5px dashed #9cc1a8'></i>Planned</span>";
   card.appendChild(leg);
@@ -718,11 +856,31 @@ function openPlanned(iso,ps){
   card.appendChild(el("div","muted",fmtDate(iso)+" · Phase "+ps.phase+", Week "+ps.week+" · Session "+ps.stype));
   const wn=weekNote(ps.phase,ps.week);
   if(wn){ const b=el("div","banner "+(/deload/i.test(wn)?"warn":"info")); b.style.margin="10px 0 0"; b.innerHTML="<b>Week "+ps.week+"</b>"+esc(wn); card.appendChild(b); }
+  if(g && g.warmup){
+    const wsum=el("div","ltime"); wsum.style.marginTop="8px";
+    wsum.appendChild(el("b",null,"Warm-up"));
+    if(typeof g.warmup==="object"){
+      wsum.appendChild(el("br"));
+      wsum.appendChild(document.createTextNode((g.warmup.rounds?g.warmup.rounds+" ":"")+
+        (g.warmup.items||[]).map(it=>(it.n?it.n+" ":"")+it.move).join(" · ")));
+    } else { wsum.appendChild(el("br")); wsum.appendChild(document.createTextNode(g.warmup)); }
+    card.appendChild(wsum);
+  }
   if(g) g.blocks.forEach(b=>{
-    if(b.mode==="strength"||b.mode==="hold")
-      card.insertAdjacentHTML("beforeend","<div class='ltime' style='margin-top:6px'><b>"+esc(b.bid)+" — "+esc(b.name)+"</b><br>"+esc(b.meta||"")+"</div>");
-    else if(b.mode==="note" && b.desc)
+    if(b.mode==="strength"||b.mode==="hold"){
+      const row=el("div","ltime"); row.style.marginTop="6px";
+      const lab=el("b");
+      lab.appendChild(document.createTextNode(b.bid+" — "));
+      const lk=el("span","exn",esc(b.name)); lk.onclick=()=>openExerciseInfo(b.name);
+      lab.appendChild(lk);
+      row.appendChild(lab);
+      if(b.meta){ row.appendChild(el("br")); row.appendChild(document.createTextNode(b.meta)); }
+      card.appendChild(row);
+    } else if(b.mode==="conditioning"){
+      card.insertAdjacentHTML("beforeend","<div class='ltime' style='margin-top:6px'><b>"+esc(b.bid)+" — Conditioning</b><br>"+esc(b.optA||"")+"</div>");
+    } else if(b.mode==="note" && b.desc){
       card.insertAdjacentHTML("beforeend","<div class='ltime' style='margin-top:6px'>"+esc(b.desc)+"</div>");
+    }
   });
   const logIt=el("button","big-btn","Log this session"); logIt.style.marginTop="14px";
   logIt.onclick=()=>{ ov.remove(); startSession(ps.phase,ps.week,ps.stype,iso); };
@@ -761,7 +919,7 @@ function doSearch(q){
   else hits.slice(0,60).forEach(s=>{
     const exM=[...new Set((s.blocks||[]).filter(b=>b.name && b.name.toLowerCase().indexOf(q)>=0).map(b=>b.name))];
     const row=el("div","hist");
-    const dotc=s.archived?"Arc":(s.stype==="B"?"B":(s.stype==="Home"?"Home":"A"));
+    const dotc=stypeDot(s);
     const dotT=s.archived?"OLD":esc(s.stype||"?");
     row.innerHTML="<div class='dot "+dotc+"'>"+dotT+"</div>"+
       "<div class='info'><div class='l1'>"+esc(s.title||"Session")+"</div>"+
@@ -786,13 +944,13 @@ function renderPicker(m){
   const wk=el("select"); c.appendChild(wk);
   c.appendChild(el("label","fld","Session"));
   const ss=el("select");
-  [["A","Squat Day"],["B","Hinge Day"],["Home","Home — Supplementary"]].forEach(x=>{ const o=el("option",null,x[1]); o.value=x[0]; ss.appendChild(o); });
+  [["A","Squat Day"],["B","Hinge Day"],["Aux","Auxiliary — Gap-Filler"],["Home","Home — Supplementary"]].forEach(x=>{ const o=el("option",null,x[1]); o.value=x[0]; ss.appendChild(o); });
   c.appendChild(ss);
   function fillWeeks(){ const p=phaseById(+ph.value); wk.innerHTML=""; for(let i=1;i<=p.weekCount;i++){ const o=el("option",null,"Week "+i); o.value=i; wk.appendChild(o); } }
   ph.onchange=fillWeeks; fillWeeks();
   const tps=dateToProgramSession(todayISO());
   if(tps){ ph.value=tps.phase; fillWeeks(); wk.value=tps.week; ss.value=tps.stype; }
-  else { ph.value=1; fillWeeks(); ss.value="A"; }
+  else { const nw=nearestProgramWeek(todayISO()); if(nw){ ph.value=nw.phase; fillWeeks(); wk.value=nw.week; } else { ph.value=1; fillWeeks(); } ss.value="Aux"; }
   const start=el("button","big-btn","Start →"); start.style.marginTop="14px";
   start.onclick=()=>startSession(+ph.value,+wk.value,ss.value);
   c.appendChild(start);
@@ -817,7 +975,7 @@ function startSession(phase,week,stype,dateIso){
   } else if(stype==="Custom"){
     draft.title="Custom Session"; draft.warmup=""; draft.blocks=[];
   } else {
-    const sess=generateSession(phase,week,stype,draft.date);
+    const sess=(stype==="Aux")?generateAuxSession(draft.date):generateSession(phase,week,stype,draft.date);
     draft.title=sess.name; draft.warmup=sess.warmup;
     draft.blocks=sess.blocks.map(b=>{
       const nb=Object.assign({},b);
@@ -842,8 +1000,9 @@ function startEdit(s){ STATE.draft=JSON.parse(JSON.stringify(s)); STATE.editId=s
 /* ============ LOG SCREEN ============ */
 function renderLog(m){
   const d=STATE.draft;
-  $("#hTitle").textContent=(STATE.editId?"Edit — ":"")+(d.stype==="Home"?"Home Session":(d.stype==="Custom"?"Custom":(d.stype==="A"?"Squat Day":"Hinge Day")));
+  $("#hTitle").textContent=(STATE.editId?"Edit — ":"")+(d.stype==="Home"?"Home Session":(d.stype==="Custom"?"Custom":(d.stype==="Aux"?"Auxiliary":(d.stype==="A"?"Squat Day":"Hinge Day"))));
   $("#hSub").textContent="Phase "+d.phase+" · Week "+d.week;
+  setHeaderTheme(d.stype,d.phase);
 
   if(d.stype==="A"||d.stype==="B"){
     const last=lastSessionOfType(d.stype, d.id);
@@ -965,13 +1124,27 @@ function nameEl(name, tappable){
 }
 function buildBlockCard(b,idx){
   const card=el("div","card"); card.dataset.block=idx;
+  card.style.borderLeft="5px solid "+groupColor(b.bid);
   const hdr=el("div","blockhdr");
-  hdr.appendChild(el("span","pill badge",esc(b.bid)));
+  const bdg=el("span","pill badge",esc(b.bid)); bdg.style.background=groupColor(b.bid); hdr.appendChild(bdg);
   hdr.appendChild(el("span","pill type",esc(b.type)));
   card.appendChild(hdr);
   if(b.custom){
     const nm=el("div","ex-name"); const ni=el("input"); ni.className="exname-input";
     ni.placeholder="Exercise name"; ni.value=b.name||""; nm.appendChild(ni); card.appendChild(nm);
+    const ms=el("select"); ms.className="metric-pick"; ms.style.marginTop="6px";
+    [["weight","Logs: Weight (lb)"],["band","Logs: Band"],["bodyweight","Logs: Bodyweight / +load"],["hold","Logs: Time hold"]].forEach(o=>{
+      const op=el("option",null,o[1]); op.value=o[0]; ms.appendChild(op);
+    });
+    ms.value=b.mode==="hold"?"hold":(b.metric||"weight");
+    ms.onchange=()=>{
+      const cur=[]; card.querySelectorAll(".setrow").forEach(r=>{ const o={};
+        r.querySelectorAll("input").forEach(inp=>{ if(inp.dataset.f) o[inp.dataset.f]=inp.value; }); cur.push(o); });
+      b.sets=cur.length?cur:[{},{},{}];
+      if(ms.value==="hold"){ b.mode="hold"; delete b.metric; } else { b.mode="strength"; b.metric=ms.value; }
+      card.replaceWith(buildBlockCard(b,idx)); scheduleSave();
+    };
+    card.appendChild(ms);
   } else card.appendChild(nameEl(b.name, b.mode==="strength"||b.mode==="hold"));
   if(b.meta) card.appendChild(el("div","meta",esc(b.meta)));
   if(b.swap) card.appendChild(el("div","swap","swap: "+esc(b.swap)));
@@ -984,16 +1157,17 @@ function buildBlockCard(b,idx){
     }
   }
   if(b.mode==="strength"||b.mode==="hold"){
-    const hold=b.mode==="hold";
+    const metric=b.mode==="hold"?"hold":(b.metric||metricFor(b.name));
+    const hold=metric==="hold";
     const ch=el("div",hold?"colhdr hold":"colhdr");
-    ch.innerHTML=hold?"<div>Set</div><div>Load</div><div>Secs</div><div></div>":"<div>Set</div><div>Weight</div><div>Reps</div><div>RIR</div><div></div>";
+    ch.innerHTML=COLHDR[metric]||COLHDR.weight;
     card.appendChild(ch);
     const rows=el("div","rows");
-    (b.sets||[]).forEach((s,i)=> rows.appendChild(makeSetRow(hold,i,s)));
+    (b.sets||[]).forEach((s,i)=> rows.appendChild(makeSetRow(metric,i,s)));
     card.appendChild(rows);
     const ftr=el("div","blockftr");
     const add=el("button","addset","＋ Set");
-    add.onclick=()=>{ rows.appendChild(makeSetRow(hold,rows.children.length,{})); renumber(rows); scheduleSave(); };
+    add.onclick=()=>{ rows.appendChild(makeSetRow(metric,rows.children.length,{})); renumber(rows); scheduleSave(); };
     ftr.appendChild(add);
     if(b.restSec){ const rb=el("button","restbtn","⏱ "+fmtMMSS(b.restSec)); rb.onclick=()=>startTimer(b.restSec); ftr.appendChild(rb); }
     card.appendChild(ftr);
@@ -1006,7 +1180,16 @@ function buildBlockCard(b,idx){
       r.onchange=()=>{ card.querySelectorAll(".opt").forEach(x=>x.classList.remove("sel")); wd.classList.add("sel"); };
       wd.appendChild(r); wd.appendChild(el("div","t","<b>Option "+o[0]+"</b><br>"+esc(o[1]||""))); card.appendChild(wd);
     });
-    const rl=el("textarea"); rl.className="cond-result"; rl.placeholder="Result / pace / how it felt"; rl.value=lg.result||"";
+    card.appendChild(el("div","sectiontitle","Cardio stats — fill in what you have"));
+    const cg=el("div","cardiogrid");
+    [["meters","Meters"],["time","Time"],["pace","Pace /500m"],["calories","Calories"],["avgHR","Avg HR"]].forEach(f=>{
+      const box=el("div"); box.appendChild(el("label","fld",f[1]));
+      const inp=el("input"); inp.className="cardio-f"; inp.dataset.f=f[0]; inp.value=lg[f[0]]||"";
+      if(f[0]!=="time"&&f[0]!=="pace") inp.inputMode="numeric";
+      box.appendChild(inp); cg.appendChild(box);
+    });
+    card.appendChild(cg);
+    const rl=el("textarea"); rl.className="cond-result"; rl.placeholder="How it felt / anything to note"; rl.value=lg.result||"";
     rl.style.marginTop="8px"; card.appendChild(rl);
   }
   else if(b.mode==="note"){
@@ -1025,10 +1208,21 @@ function buildBlockCard(b,idx){
   }
   return card;
 }
-function makeSetRow(hold,n,data){
+const COLHDR = {
+  weight:"<div>Set</div><div>Weight</div><div>Reps</div><div>RIR</div><div></div>",
+  band:"<div>Set</div><div>Band</div><div>Reps</div><div>RIR</div><div></div>",
+  bodyweight:"<div>Set</div><div>Load</div><div>Reps</div><div>RIR</div><div></div>",
+  hold:"<div>Set</div><div>Load</div><div>Secs</div><div></div>"
+};
+function makeSetRow(metric,n,data){
+  const hold = metric==="hold";
   const row=el("div",hold?"setrow hold":"setrow"); row.dataset.set="1";
   row.appendChild(el("span","setn",String(n+1)));
-  const w=el("input"); w.dataset.f="weight"; w.inputMode="decimal"; w.placeholder=hold?"lb (opt)":"lb"; w.value=data.weight||""; row.appendChild(w);
+  const w=el("input"); w.dataset.f="weight";
+  if(metric==="band"){ w.placeholder="band (e.g. red)"; w.inputMode="text"; }
+  else if(metric==="bodyweight"){ w.placeholder="BW / +lb"; w.inputMode="text"; }
+  else { w.placeholder=hold?"lb (opt)":"lb"; w.inputMode="decimal"; }
+  w.value=data.weight||""; row.appendChild(w);
   const r=el("input"); r.dataset.f="reps"; r.inputMode="numeric"; r.placeholder=hold?"secs":"reps"; r.value=data.reps||""; row.appendChild(r);
   if(!hold){ const ri=el("input"); ri.dataset.f="rir"; ri.inputMode="numeric"; ri.placeholder="RIR"; ri.value=data.rir||""; row.appendChild(ri); }
   const x=el("button","rm","×");
@@ -1058,6 +1252,7 @@ function readForm(){
     } else if(src.mode==="conditioning"){
       const sel=card.querySelector("input[type=radio]:checked");
       nb.logged={ option: sel?sel.value:"A", result: card.querySelector(".cond-result").value };
+      card.querySelectorAll(".cardio-f").forEach(inp=>{ nb.logged[inp.dataset.f]=inp.value; });
     } else if(src.mode==="note"){
       nb.logged={ done: card.querySelector(".note-done").checked, notes: card.querySelector(".note-notes").value };
     }
@@ -1087,6 +1282,7 @@ function renderDetail(m){
   const s=DB.sessions.find(x=>x.id===STATE.detailId);
   if(!s){ go("home"); return; }
   $("#hTitle").textContent="Session"; $("#hSub").textContent=fmtDate(s.date);
+  setHeaderTheme(s.stype,s.phase);
   const c=el("div","card");
   const sub = s.archived ? (fmtDate(s.date)+" · Archived"+(s.category?" · "+esc(s.category):"")) :
     (fmtDate(s.date)+" · Phase "+s.phase+", Week "+s.week+" · Session "+esc(s.stype));
@@ -1094,22 +1290,32 @@ function renderDetail(m){
   if(s.recovery){ const rc={mild:["good","Soreness: mild / cleared <48h"],moderate:["warn","Soreness: lingered past 48h"],significant:["bad","Soreness: 4+ days / joint pain"]}[s.recovery];
     if(rc) c.innerHTML+="<div class='pillrow'><span class='pill "+rc[0]+"'>"+rc[1]+"</span></div>"; }
   m.appendChild(c);
+  const _wc=warmupCard(s.warmup); if(_wc) m.appendChild(_wc);
   (s.blocks||[]).forEach(b=>{
     const card=el("div","card");
-    const hdr=el("div","blockhdr"); if(b.bid) hdr.appendChild(el("span","pill badge",esc(b.bid)));
+    card.style.borderLeft="5px solid "+groupColor(b.bid);
+    const hdr=el("div","blockhdr"); if(b.bid){ const bdg=el("span","pill badge",esc(b.bid)); bdg.style.background=groupColor(b.bid); hdr.appendChild(bdg); }
     card.appendChild(hdr);
     card.appendChild(nameEl(b.name||"", !!(b.name)));
     if(b.meta) card.appendChild(el("div","meta",esc(b.meta)));
     if(b.sets){
+      const dmetric=b.mode==="hold"?"hold":(b.metric||metricFor(b.name));
       let t="";
       b.sets.forEach((st,i)=>{ const parts=[];
-        if(st.weight) parts.push(st.weight+" lb");
+        if(st.weight) parts.push((dmetric==="weight"||dmetric==="hold")?(st.weight+" lb"):st.weight);
         if(st.reps) parts.push(st.reps+(b.mode==="hold"?" s":" reps"));
         if(st.rir) parts.push("RIR "+st.rir);
         if(parts.length) t+="<div class='meta'>Set "+(i+1)+": "+esc(parts.join(" × "))+"</div>"; });
       card.insertAdjacentHTML("beforeend", t||"<div class='muted'>— not logged —</div>");
     } else if(b.logged){
-      if(b.mode==="conditioning") card.insertAdjacentHTML("beforeend","<div class='meta'>Option "+esc(b.logged.option)+"</div><div class='meta'>"+esc(b.logged.result||"")+"</div>");
+      if(b.mode==="conditioning"){
+        let h="<div class='meta'>Option "+esc(b.logged.option)+"</div>";
+        const cf=[["meters"," m"],["time",""],["pace"," /500m"],["calories"," cal"],["avgHR"," bpm avg"]];
+        const stat=cf.filter(x=>b.logged[x[0]]).map(x=>esc(b.logged[x[0]])+x[1]).join(" · ");
+        if(stat) h+="<div class='meta'>"+stat+"</div>";
+        if(b.logged.result) h+="<div class='meta'>"+esc(b.logged.result)+"</div>";
+        card.insertAdjacentHTML("beforeend",h);
+      }
       else card.insertAdjacentHTML("beforeend","<div class='meta'>"+(b.logged.done?"✓ Done":"—")+" "+esc(b.logged.notes||"")+"</div>");
     }
     m.appendChild(card);

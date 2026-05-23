@@ -1,5 +1,5 @@
 /* Workout Log — service worker (offline support) */
-const CACHE = "wlog-v8";
+const CACHE = "wlog-v9";
 const ASSETS = ["./", "./index.html"];
 
 self.addEventListener("install", e => {
